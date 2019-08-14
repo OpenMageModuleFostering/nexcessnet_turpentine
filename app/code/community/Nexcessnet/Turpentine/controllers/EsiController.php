@@ -137,8 +137,16 @@ class Nexcessnet_Turpentine_EsiController extends Mage_Core_Controller_Front_Act
             Mage::register( $key, $value, true );
         }
         foreach( $esiData->getComplexRegistry() as $key => $data ) {
-            $value = Mage::getModel( $data['model'] )->load( $data['id'] );
-            Mage::register( $key, $value, true );
+            $value = Mage::getModel( $data['model'] );
+            if( !is_object( $value ) ) {
+                Mage::helper( 'turpentine/debug' )->logWarn(
+                    'Failed to register key/model: %s as %s(%s)',
+                    $key, $data['model'], $data['id'] );
+                continue;
+            } else {
+                $value->load( $data['id'] );
+                Mage::register( $key, $value, true );
+            }
         }
         $layout = Mage::getSingleton( 'core/layout' );
         Mage::getSingleton( 'core/design_package' )
@@ -156,6 +164,7 @@ class Nexcessnet_Turpentine_EsiController extends Mage_Core_Controller_Front_Act
             $esiData->getNameInLayout() ) ) );
         if( $blockNode instanceof Varien_Simplexml_Element ) {
             $nodesToGenerate = Mage::helper( 'turpentine/data' )
+                ->setLayout( $layout )
                 ->getChildBlockNames( $blockNode );
             Mage::getModel( 'turpentine/shim_mage_core_layout' )
                 ->shim_generateFullBlock( $blockNode );
