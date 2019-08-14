@@ -145,6 +145,14 @@ sub vcl_recv {
             set req.backend = admin;
             return (pipe);
         }
+        if (req.http.Cookie ~ "\bcurrency=") {
+            set req.http.X-Varnish-Currency = regsub(
+                req.http.Cookie, ".*\bcurrency=([^;]*).*", "\1");
+        }
+        if (req.http.Cookie ~ "\bstore=") {
+            set req.http.X-Varnish-Store = regsub(
+                req.http.Cookie, ".*\bstore=([^;]*).*", "\1");
+        }
         # looks like an ESI request, add some extra vars for further processing
         if (req.url ~ "/turpentine/esi/getBlock/") {
             set req.http.X-Varnish-Esi-Method = regsub(
@@ -181,6 +189,12 @@ sub vcl_recv {
         # certain that cron.php at least will always be in it, so it will
         # never be empty
         if (req.url ~ "{{url_base_regex}}(?:{{url_excludes}})") {
+            return (pipe);
+        }
+        if (req.url ~ "\?.*__from_store=") {
+            # user switched stores. we pipe this instead of passing below because
+            # switching stores doesn't redirect (302), just acts like a link to
+            # another page (200) so the Set-Cookie header would be removed
             return (pipe);
         }
         if ({{enable_get_excludes}} &&
@@ -221,6 +235,9 @@ sub vcl_hash {
         # make sure we give back the right encoding
         hash_data(req.http.Accept-Encoding);
     }
+    # make sure data is for the right store and currency based on the *store*
+    # and *currency* cookies
+    hash_data("s=" + req.http.X-Varnish-Store + "&c=" + req.http.X-Varnish-Currency);
     if (req.http.X-Varnish-Esi-Access == "private" &&
             req.http.Cookie ~ "frontend=") {
         hash_data(regsub(req.http.Cookie, "^.*?frontend=([^;]*);*.*$", "\1"));
@@ -334,6 +351,8 @@ sub vcl_deliver {
         set resp.http.X-Varnish-Hits = obj.hits;
         set resp.http.X-Varnish-Esi-Method = req.http.X-Varnish-Esi-Method;
         set resp.http.X-Varnish-Esi-Access = req.http.X-Varnish-Esi-Access;
+        set resp.http.X-Varnish-Currency = req.http.X-Varnish-Currency;
+        set resp.http.X-Varnish-Store = req.http.X-Varnish-Store;
     } else {
         # remove Varnish fingerprints
         unset resp.http.X-Varnish;
@@ -343,6 +362,7 @@ sub vcl_deliver {
         unset resp.http.X-Turpentine-Cache;
         unset resp.http.X-Turpentine-Esi;
         unset resp.http.X-Turpentine-Flush-Events;
+        unset resp.http.X-Turpentine-Block;
         unset resp.http.X-Varnish-Session;
         # this header indicates the session that originally generated a cached
         # page. it *must* not be sent to a client in production with lax

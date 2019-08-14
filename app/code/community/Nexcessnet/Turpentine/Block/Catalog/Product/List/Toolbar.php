@@ -19,20 +19,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-$debugEnabled = (bool)Mage::helper( 'turpentine/esi' )->getEsiDebugEnabled();
+class Nexcessnet_Turpentine_Block_Catalog_Product_List_Toolbar extends
+    Mage_Catalog_Block_Product_List_Toolbar {
 
-if( $debugEnabled ) {
-    echo sprintf( '<!-- ESI START [%s] -->', $this->getNameInLayout() ) . PHP_EOL;
-    echo sprintf( '<!-- ESI URL: %s -->', $this->getEsiUrl() ) . PHP_EOL;
-} else {
-    echo '<!-- ESI START DUMMY COMMENT [] -->' . PHP_EOL;
-    echo '<!-- ESI URL DUMMY COMMENT -->' . PHP_EOL;
-}
-echo sprintf( '<esi:remove>ESI processing not enabled</esi:remove>
-<!--esi <esi:include src="%s" /> -->',
-    $this->getEsiUrl() ) . PHP_EOL;
-if( $debugEnabled ) {
-    echo sprintf( '<!-- ESI END [%s] -->', $this->getNameInLayout() ) . PHP_EOL;
-} else {
-    echo '<!-- ESI END DUMMY COMMENT [] -->' . PHP_EOL;
+    public function _construct() {
+        parent::_construct();
+        $this->disableParamsMemorizing();
+    }
 }

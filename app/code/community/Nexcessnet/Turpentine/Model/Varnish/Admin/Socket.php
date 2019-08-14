@@ -45,7 +45,7 @@
  */
 class Nexcessnet_Turpentine_Model_Varnish_Admin_Socket {
 
-    //possible command return codes, from vcli.h
+    // possible command return codes, from vcli.h
     const CODE_SYNTAX       = 100;
     const CODE_UNKNOWN      = 101;
     const CODE_UNIMPL       = 102;
@@ -59,8 +59,9 @@ class Nexcessnet_Turpentine_Model_Varnish_Admin_Socket {
     const CODE_CLOSE        = 500;
 
     const READ_CHUNK_SIZE   = 1024;
-    //varnish default, can be changed at Varnish startup time but it's probably not
-    //worth the trouble to dynamically detect at runtime
+    // varnish default, can only be changed at Varnish startup time
+    // if data to write is over this limit the actual run-time limit is checked
+    // and used
     const CLI_CMD_LENGTH_LIMIT  = 8192;
 
     /**
@@ -343,15 +344,26 @@ class Nexcessnet_Turpentine_Model_Varnish_Admin_Socket {
             $this->_connect();
         }
         $data = rtrim( $data ) . PHP_EOL;
-        if( strlen( $data ) >= self::CLI_CMD_LENGTH_LIMIT ) {
-            Mage::throwException( sprintf(
-                'Varnish data to write over length limit by %d characters',
-                strlen( $data ) - self::CLI_CMD_LENGTH_LIMIT ) );
+        $dataLength = strlen( $data );
+        if( $dataLength >= self::CLI_CMD_LENGTH_LIMIT ) {
+            $cliBufferResponse = $this->param_show( 'cli_buffer' );
+            if( preg_match( '~^cli_buffer\s+(\d+)\s+\[bytes\]~',
+                    $cliBufferResponse['text'], $match ) ) {
+                $realLimit = (int)$match[1];
+            } else {
+                Mage::helper( 'turpentine/debug' )->logWarn(
+                    'Failed to determine Varnish cli_buffer limit, using default' );
+                $realLimit = self::CLI_CMD_LENGTH_LIMIT;
+            }
+            if( $dataLength >= $realLimit ) {
+                Mage::throwException( sprintf(
+                    'Varnish data to write over length limit by %d characters',
+                    $dataLength - $realLimit ) );
+            }
         }
-        $byteCount = fwrite( $this->_varnishConn, $data );
-        if( $byteCount !== strlen( $data ) ) {
+        if( ( $byteCount = fwrite( $this->_varnishConn, $data ) ) !== $dataLength ) {
             Mage::throwException( sprintf( 'Varnish socket write error: %d != %d',
-                $byteCount, strlen( $data ) ) );
+                $byteCount, $dataLength ) );
         }
         return $this;
     }

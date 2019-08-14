@@ -20,15 +20,17 @@
 <config>
     <modules>
         <Nexcessnet_Turpentine>
-            <version>0.5.2</version>
+            <version>0.5.3</version>
         </Nexcessnet_Turpentine>
     </modules>
     <default>
         <turpentine_varnish>
             <general>
+                <auto_apply_on_save>1</auto_apply_on_save>
                 <varnish_debug>0</varnish_debug>
                 <block_debug>0</block_debug>
                 <ajax_messages>1</ajax_messages>
+                <fix_product_toolbar>0</fix_product_toolbar>
                 <crawler_enable>0</crawler_enable>
                 <crawler_debug>0</crawler_debug>
             </general>
@@ -94,16 +96,24 @@
             <turpentine>
                 <class>Nexcessnet_Turpentine_Block</class>
             </turpentine>
+            <!--
+            The core/messages block is rewritten because it doesn't use a
+            template we can replace with an ESI include tag, just dumps out a
+            block of hard-coded HTML and also frequently skips the toHtml method
+
+            However, since class rewrites aren't conditional and we only want to
+            do this rewrite if the Enable Flash Messages option is enabled the
+            rewrite is actually added at runtime (controller_front_init_before),
+            see observer_esi::addMessagesBlockRewrite . Leaving this rewrite
+            here but commented out for clarity
+            -->
+            <!--
             <core>
                 <rewrite>
-                    <!--
-                    Rewritten because it doesn't use a template we can replace
-                    with an ESI include tag, just dumps out a block of
-                    hard-coded HTML and also frequently skips the toHtml method
-                    -->
                     <messages>Nexcessnet_Turpentine_Block_Core_Messages</messages>
                 </rewrite>
             </core>
+            -->
         </blocks>
         <helpers>
             <turpentine>
@@ -218,6 +228,14 @@
                         <class>turpentine/observer_esi</class>
                         <method>loadCacheClearEvents</method>
                     </turpentine_esi_controller_front_init_before>
+                    <turpentine_esi_controller_front_init_before2>
+                        <class>turpentine/observer_esi</class>
+                        <method>addMessagesBlockRewrite</method>
+                    </turpentine_esi_controller_front_init_before2>
+                    <turpentine_varnish_controller_front_init_before>
+                        <class>turpentine/observer_varnish</class>
+                        <method>addProductListToolbarRewrite</method>
+                    </turpentine_varnish_controller_front_init_before>
                 </observers>
             </controller_front_init_before>
 
@@ -254,6 +272,10 @@
                     </turpentine_varnish_catalog_category_save_commit_after>
                 </observers>
             </catalog_category_save_commit_after>
+            <!--
+                This is disabled because it causes broken images on cached pages
+            -->
+            <!--
             <clean_media_cache_after>
                 <observers>
                     <turpentine_varnish_clean_media_cache_after>
@@ -270,6 +292,7 @@
                     </turpentine_varnish_clean_catalog_images_cache_after>
                 </observers>
             </clean_catalog_images_cache_after>
+            -->
             <cms_page_save_commit_after>
                 <observers>
                     <turpentine_varnish_cms_page_save_commit_after>
