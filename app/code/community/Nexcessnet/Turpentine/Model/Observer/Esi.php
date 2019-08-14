@@ -76,29 +76,50 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
      * @return null
      */
     public function checkRedirectUrl( $eventObject ) {
+        $esiHelper = Mage::helper( 'turpentine/esi' );
         $url = $eventObject->getTransport()->getUrl();
-        // TODO: make sure this actually looks like a URL
+        $referer = Mage::helper( 'core/http' )->getHttpReferer();
+        // $referer = Mage::app()->getRequest()->getHeader( 'Referer' );
+        $dummyUrl = $esiHelper->getDummyUrl();
         $reqUenc = Mage::helper( 'core' )->urlDecode(
             Mage::app()->getRequest()->getParam( 'uenc' ) );
-        $esiHelper = Mage::helper( 'turpentine/esi' );
-        $dummyUrl = $esiHelper->getDummyUrl();
-        $getBlockUrlPattern = '~/turpentine/esi/getBlock/~';
-        if( preg_match( $getBlockUrlPattern, $url ) ||
-                preg_match( $getBlockUrlPattern, $reqUenc ) ) {
-            $eventObject->getTransport()->setUrl( $dummyUrl );
-        } elseif( $reqUenc && Mage::getBaseUrl() == $url ) {
-            $corsOrigin = $esiHelper->getCorsOrigin();
-            if( $corsOrigin != $esiHelper->getCorsOrigin( $reqUenc ) ) {
-                $eventObject->getTransport()->setUrl(
-                    $corsOrigin . parse_url( $reqUenc, PHP_URL_PATH ) );
+
+        if( $this->_checkIsEsiUrl( $url ) ) {
+            if( $this->_checkIsNotEsiUrl( $reqUenc ) &&
+                    Mage::getBaseUrl() == $url ) {
+                $newUrl = $this->_fixupUencUrl( $reqUenc );
+            } elseif( $this->_checkIsNotEsiUrl( $referer ) ) {
+                $newUrl = $referer;
+            } else {
+                $newUrl = $dummyUrl;
             }
+            // TODO: make sure this actually looks like a URL
+            $eventObject->getTransport()->setUrl( $newUrl );
         }
 
         if( $eventObject->getTransport()->getUrl() != $url ) {
             Mage::helper( 'turpentine/debug' )->logDebug(
-                'ESI redirect fixup triggered, rewrote: %s => %s',
+                'Detected redirect to ESI URL, changing: %s => %s',
                 $url, $eventObject->getTransport()->getUrl() );
         }
+    }
+
+    protected function _fixupUencUrl( $uencUrl ) {
+        $esiHelper = Mage::helper( 'turpentine/esi' );
+        $corsOrigin = $esiHelper->getCorsOrigin();
+        if( $corsOrigin != $esiHelper->getCorsOrigin( $uencUrl ) ) {
+            return $corsOrigin . parse_url( $uencUrl, PHP_URL_PATH );
+        } else {
+            return $uencUrl;
+        }
+    }
+
+    protected function _checkIsNotEsiUrl( $url ) {
+        return $url && !preg_match( '~/turpentine/esi/getBlock/~', $url );
+    }
+
+    protected function _checkIsEsiUrl( $url ) {
+        return !$this->_checkIsNotEsiUrl( $url );
     }
 
     /**
@@ -108,6 +129,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
      * @return null
      */
     public function loadCacheClearEvents( $eventObject ) {
+        Varien_Profiler::start( 'turpentine::observer::esi::loadCacheClearEvents' );
         $events = Mage::helper( 'turpentine/esi' )->getCacheClearEvents();
         $appShim = Mage::getSingleton( 'turpentine/shim_mage_core_app' );
         foreach( $events as $ccEvent ) {
@@ -115,6 +137,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
                 'turpentine_ban_' . $ccEvent, 'singleton',
                 'turpentine/observer_ban', 'banClientEsiCache' );
         }
+        Varien_Profiler::stop( 'turpentine::observer::esi::loadCacheClearEvents' );
     }
 
     /**
@@ -150,6 +173,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
                 $debugHelper->logInfo( 'Block check passed, injecting block: %s',
                     $blockObject->getNameInLayout() );
             }
+            Varien_Profiler::start( 'turpentine::observer::esi::injectEsi' );
             $ttlParam = $esiHelper->getEsiTtlParam();
             $cacheTypeParam = $esiHelper->getEsiCacheTypeParam();
             $dataParam = $esiHelper->getEsiDataParam();
@@ -198,6 +222,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
                     'ESI url is probably too long (%d > 2047 characters): %s',
                     strlen( $esiUrl ), $esiUrl );
             }
+            Varien_Profiler::stop( 'turpentine::observer::esi::injectEsi' );
         } // else handle the block like normal and cache it inline with the page
     }
 
@@ -209,6 +234,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
      * @return Varien_Object
      */
     protected function _getEsiData( $blockObject, $esiOptions ) {
+        Varien_Profiler::start( 'turpentine::observer::esi::_getEsiData' );
         $esiHelper = Mage::helper( 'turpentine/esi' );
         $cacheTypeParam = $esiHelper->getEsiCacheTypeParam();
         $scopeParam = $esiHelper->getEsiScopeParam();
@@ -263,6 +289,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
         }
         $esiData->setSimpleRegistry( $simpleRegistry );
         $esiData->setComplexRegistry( $complexRegistry );
+        Varien_Profiler::stop( 'turpentine::observer::esi::_getEsiData' );
         return $esiData;
     }
 
@@ -287,6 +314,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
      * @return array
      */
     protected function _getBlockLayoutHandles( $block ) {
+        Varien_Profiler::start( 'turpentine::observer::esi::_getBlockLayoutHandles' );
         $layout = $block->getLayout();
         $layoutXml = Mage::helper( 'turpentine/esi' )->getLayoutXml();
         $activeHandles = array();
@@ -310,6 +338,7 @@ class Nexcessnet_Turpentine_Model_Observer_Esi extends Varien_Event_Observer {
         if( !$activeHandles ) {
             $activeHandles[] = 'default';
         }
+        Varien_Profiler::stop( 'turpentine::observer::esi::_getBlockLayoutHandles' );
         return array_unique( $activeHandles );
     }
 

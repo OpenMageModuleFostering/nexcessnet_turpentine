@@ -193,6 +193,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
      * @return array
      */
     public function getCacheClearEvents() {
+        Varien_Profiler::start( 'turpentine::helper::esi::getCacheClearEvents' );
         $cacheKey = $this->getCacheClearEventsCacheKey();
         $events = @unserialize( Mage::app()->loadCache( $cacheKey ) );
         if( is_null( $events ) || $events === false ) {
@@ -200,6 +201,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
             Mage::app()->saveCache( serialize( $events ), $cacheKey,
                 array( 'LAYOUT_GENERAL_CACHE_TAG' ) );
         }
+        Varien_Profiler::stop( 'turpentine::helper::esi::getCacheClearEvents' );
         return array_merge( $this->getDefaultCacheClearEvents(), $events );
     }
 
@@ -209,7 +211,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
      * @return string
      */
     public function getDefaultEsiTtl() {
-        return Mage::getStoreConfig( 'web/cookie/cookie_lifetime' );
+        return trim( Mage::getStoreConfig( 'web/cookie/cookie_lifetime' ) );
     }
 
     /**
@@ -241,8 +243,9 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
      * @return Mage_Core_Model_Layout_Element|SimpleXMLElement
      */
     public function getLayoutXml() {
+        Varien_Profiler::start( 'turpentine::helper::esi::getLayoutXml' );
         if( is_null( $this->_layoutXml ) ) {
-            if( Mage::app()->useCache( 'layout' ) ) {
+            if( $useCache = Mage::app()->useCache( 'layout' ) ) {
                 $cacheKey = $this->getFileLayoutUpdatesXmlCacheKey();
                 $this->_layoutXml = simplexml_load_string(
                     Mage::app()->loadCache( $cacheKey ) );
@@ -250,12 +253,13 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
             // this check is redundant if the layout cache is disabled
             if( !$this->_layoutXml ) {
                 $this->_layoutXml = $this->_loadLayoutXml();
-            }
-            if( Mage::app()->useCache( 'layout' ) ) {
-                Mage::app()->saveCache( $this->_layoutXml->asXML(),
-                    $cacheKey, array( 'LAYOUT_GENERAL_CACHE_TAG' ) );
+                if( $useCache ) {
+                    Mage::app()->saveCache( $this->_layoutXml->asXML(),
+                        $cacheKey, array( 'LAYOUT_GENERAL_CACHE_TAG' ) );
+                }
             }
         }
+        Varien_Profiler::stop( 'turpentine::helper::esi::getLayoutXml' );
         return $this->_layoutXml;
     }
 
@@ -299,6 +303,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
      * @return array
      */
     protected function _loadEsiCacheClearEvents() {
+        Varien_Profiler::start( 'turpentine::helper::esi::_loadEsiCacheClearEvents' );
         $layoutXml = $this->getLayoutXml();
         $events = $layoutXml->xpath(
             '//action[@method=\'setEsiOptions\']/params/flush_events/*' );
@@ -310,6 +315,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
         } else {
             $events = array();
         }
+        Varien_Profiler::stop( 'turpentine::helper::esi::_loadEsiCacheClearEvents' );
         return $events;
     }
 
@@ -319,6 +325,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
      * @return Mage_Core_Model_Layout_Element
      */
     protected function _loadLayoutXml() {
+        Varien_Profiler::start( 'turpentine::helper::esi::_loadLayoutXml' );
         $design = Mage::getDesign();
         $layoutXml = Mage::getSingleton( 'core/layout' )
             ->getUpdate()
@@ -327,6 +334,7 @@ class Nexcessnet_Turpentine_Helper_Esi extends Mage_Core_Helper_Abstract {
                 $design->getPackageName(),
                 $design->getTheme( 'layout' ),
                 Mage::app()->getStore()->getId() );
+        Varien_Profiler::stop( 'turpentine::helper::esi::_loadLayoutXml' );
         return $layoutXml;
     }
 }

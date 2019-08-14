@@ -1,3 +1,20 @@
+# Nexcess.net Turpentine Extension for Magento
+# Copyright (C) 2012  Nexcess.net L.L.C.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 ## Nexcessnet_Turpentine Varnish v2 VCL Template
 
 ## Custom C Code
@@ -39,17 +56,22 @@ sub remove_double_slashes {
 }
 
 sub generate_session {
-    # generate a UUID and set the Cookie header to `frontend=$UUID`, overwrites
-    # any other cookies in the header
-    C{
-        char uuid_buf [50];
-        generate_uuid(uuid_buf);
-        VRT_SetHdr(sp, HDR_REQ,
-            "\030X-Varnish-Faked-Session:",
-            uuid_buf,
-            vrt_magic_string_end
-        );
-    }C
+    # generate a UUID and add `frontend=$UUID` to the Cookie header, or use SID
+    # from SID URL param
+    if (req.url ~ ".*[&?]SID=([^&]+).*") {
+        set req.http.X-Varnish-Faked-Session = regsub(
+            req.url, ".*[&?]SID=([^&]+).*", "frontend=\1");
+    } else {
+        C{
+            char uuid_buf [50];
+            generate_uuid(uuid_buf);
+            VRT_SetHdr(sp, HDR_REQ,
+                "\030X-Varnish-Faked-Session:",
+                uuid_buf,
+                vrt_magic_string_end
+            );
+        }C
+    }
     if (req.http.Cookie) {
         # client sent us cookies, just not a frontend cookie. try not to blow
         # away the extra cookies
@@ -154,6 +176,7 @@ sub vcl_recv {
                 req.url ~ ".*\.(?:{{static_extensions}})(?=\?|&|$)") {
             # don't need cookies for static assets
             remove req.http.Cookie;
+            remove req.http.X-Varnish-Faked-Session;
             return (lookup);
         }
         # this doesn't need a enable_url_excludes because we can be reasonably
@@ -295,7 +318,7 @@ sub vcl_deliver {
         call generate_session_expires;
         set resp.http.Set-Cookie = req.http.X-Varnish-Faked-Session "; expires="
             resp.http.X-Varnish-Cookie-Expires "; path="
-            regsub(regsub(req.url, "{{url_base_regex}}.*", "\1"), "/$", "");
+            regsub(regsub(req.url, "{{url_base_regex}}.*", "\1"), "^(.+)/$", "\1");
         if (req.http.Host) {
             set resp.http.Set-Cookie = resp.http.Set-Cookie
                 "; domain=" regsub(req.http.Host, ":\d+$", "");
