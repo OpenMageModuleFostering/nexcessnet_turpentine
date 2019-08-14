@@ -1,0 +1,16 @@
+{
+    "name": "OpenMageModuleFostering/Nexcessnet_Turpentine",
+    "type": "magento-module",
+    "license": "GPLv2",
+    "homepage": "",
+    "description": "Improves Magento support for Varnish caching and generates 2.1 and 3.0 compatible VCLs.",
+    "authors": [
+    {
+        "name": "Chris Wells",
+        "email": "clwells@nexcess.net"
+    }
+],
+    "suggest": {
+        "magento-hackathon/magento-composer-installer": "*"
+    }
+}
