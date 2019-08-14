@@ -140,7 +140,7 @@ sub vcl_recv {
                 req.http.Cookie, ".*\bstore=([^;]*).*", "\1");
         }
         # looks like an ESI request, add some extra vars for further processing
-        if (req.url ~ "/turpentine/esi/getBlock/") {
+        if (req.url ~ "/turpentine/esi/get(?:Block|FormKey)/") {
             set req.http.X-Varnish-Esi-Method = regsub(
                 req.url, ".*/{{esi_method_param}}/(\w+)/.*", "\1");
             set req.http.X-Varnish-Esi-Access = regsub(
@@ -256,6 +256,10 @@ sub vcl_fetch {
     # set the grace period
     set req.grace = {{grace_period}}s;
 
+    # Store the URL in the response object, to be able to do lurker friendly bans later
+    set beresp.http.X-Varnish-Host = req.http.host;
+    set beresp.http.X-Varnish-URL = req.url;
+
     # if it's part of magento...
     if (req.url ~ "{{url_base_regex}}") {
         # we handle the Vary stuff ourselves for now, we'll want to actually
@@ -363,6 +367,8 @@ sub vcl_deliver {
         unset resp.http.X-Turpentine-Flush-Events;
         unset resp.http.X-Turpentine-Block;
         unset resp.http.X-Varnish-Session;
+        unset resp.http.X-Varnish-Host;
+        unset resp.http.X-Varnish-URL;
         # this header indicates the session that originally generated a cached
         # page. it *must* not be sent to a client in production with lax
         # session validation or that session can be hijacked
